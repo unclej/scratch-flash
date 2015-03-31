@@ -31,6 +31,14 @@ import flash.display.*;
 import flash.events.*;
 import flash.net.URLLoader;
 import flash.utils.*;
+import flash.external.*;
+
+import flash.net.URLRequest;
+import flash.net.URLRequestMethod;
+import flash.net.URLLoader;
+import flash.net.URLVariables;
+import flash.net.URLLoaderDataFormat;
+import flash.net.URLRequestHeader;
 
 import logging.LogLevel;
 
@@ -58,6 +66,65 @@ public class ProjectIO {
 	public static function strings():Array {
 		return [];
 	}
+
+
+	public function saveAssets(proj:ScratchStage, whenDone:Function ):void{
+
+		delete proj.info.penTrails; // remove the penTrails bitmap saved in some old projects' info
+		proj.savePenLayer();
+		proj.updateInfo();
+		recordImagesAndSounds(proj.allObjects(), false, proj);
+
+		var allAssets:Array = []; 
+		var savedCount:int = 0;
+
+		var i:int;
+		for (i = 0; i < images.length; i++)  allAssets.push( images[i] );
+		for (i = 0; i < sounds.length; i++)  allAssets.push( sounds[i] );
+
+		saveAsset( allAssets[savedCount][0], allAssets[savedCount][1], assetSaved );
+
+		function assetSaved():void{
+			savedCount++;
+			if(savedCount != allAssets.length){
+				saveAsset( allAssets[savedCount][0], allAssets[savedCount][1], assetSaved );
+
+				if (app.lp) {
+					app.lp.setProgress(savedCount / allAssets.length);
+					app.lp.setInfo(
+							savedCount + ' ' +
+									Translator.map('of') + ' ' + allAssets.length + ' ' +
+									Translator.map('assets saved'));
+				}
+
+			}else{
+				whenDone();
+			}
+		}
+
+	}
+
+	public function saveAsset( md5:String, data:ByteArray, whenDone:Function ):void{
+
+		function saved():void{ whenDone(); }
+
+		//create the request
+		var request:URLRequest = new URLRequest( app.getUrl( ["assets", md5] ) );
+		//set the proper contentType
+		request.contentType = "application/octet-stream";
+		request.method = URLRequestMethod.POST;
+		request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "PUT")];
+		
+		//put it to the request
+		request.data = data;
+		 
+		//data will be sent with URLLoader
+		var loader:URLLoader = new URLLoader();
+		loader.addEventListener(Event.COMPLETE, saved);
+
+		loader.load(request);
+	}
+
 
 	//----------------------------
 	// Encode a project or sprite as a ByteArray (a 'one-file' project)
@@ -308,6 +375,41 @@ public class ProjectIO {
 		projectData.position = 0;
 		var projObject:Object = util.JSON.parse(projectData.readUTFBytes(projectData.length));
 		var proj:ScratchStage = getScratchStage();
+		proj.readJSON(projObject);
+		var assetsToFetch:Array = collectAssetsToFetch(proj.allObjects());
+		var assetDict:Object = new Object();
+		var assetCount:int = 0;
+		for each (var md5:String in assetsToFetch) fetchAsset(md5, assetReceived);
+	}
+
+
+
+	public function downloadProjectAssetsFromJson( projObject:Object ):void {
+		function assetReceived(md5:String, data:ByteArray):void {
+			assetDict[md5] = data;
+			assetCount++;
+			app.consoleLog(assetCount / assetsToFetch.length);
+			app.consoleLog(
+						assetCount + ' ' +
+								Translator.map('of') + ' ' + assetsToFetch.length + ' ' +
+								Translator.map('assets loaded'));
+			if (!data) {
+				app.log('missing asset: ' + md5);
+			}
+			if (app.lp) {
+				app.lp.setProgress(assetCount / assetsToFetch.length);
+				app.lp.setInfo(
+						assetCount + ' ' +
+								Translator.map('of') + ' ' + assetsToFetch.length + ' ' +
+								Translator.map('assets loaded'));
+			}
+			if (assetCount == assetsToFetch.length) {
+				app.consoleLog("All Loaded");
+				installAssets(proj.allObjects(), assetDict);
+				app.runtime.decodeImagesAndInstall(proj);
+			}
+		}
+		var proj:ScratchStage = new ScratchStage();
 		proj.readJSON(projObject);
 		var assetsToFetch:Array = collectAssetsToFetch(proj.allObjects());
 		var assetDict:Object = new Object();

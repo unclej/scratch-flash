@@ -35,6 +35,12 @@ import flash.events.*;
 import flash.external.ExternalInterface;
 import flash.geom.Point;
 import flash.geom.Rectangle;
+import flash.net.URLRequest;
+import flash.net.URLRequestMethod;
+import flash.net.URLRequestHeader;
+import flash.net.URLLoaderDataFormat;
+import flash.net.URLLoader;
+import flash.net.URLVariables;
 import flash.net.FileFilter;
 import flash.net.FileReference;
 import flash.net.FileReferenceList;
@@ -45,6 +51,7 @@ import flash.net.URLRequest;
 import flash.system.*;
 import flash.text.*;
 import flash.utils.*;
+import flash.external.*;
 
 import interpreter.*;
 
@@ -133,6 +140,8 @@ public class Scratch extends Sprite {
 	public var soundsPart:SoundsPart;
 	public const tipsBarClosedWidth:int = 17;
 
+	public const apiUrl:String = "http://localhost/scratch/public/api/v1/";
+
 	public var logger:Log = new Log(16);
 
 	public function Scratch() {
@@ -142,6 +151,39 @@ public class Scratch extends Sprite {
 
 		// This one must finish before most other queries can start, so do it separately
 		determineJSAccess();
+	}
+
+	public function token():String{
+		return loaderInfo.parameters["csrf_token"];
+	}
+
+	public function paramProjectId():int{
+		return loaderInfo.parameters["projectID"];
+	}
+
+	public function paramEditMode():Boolean{
+		return loaderInfo.parameters["editMode"];
+	}
+
+	public function getUrl( actionArr:Array , getParams:Object=null ):String{
+		if(getParams == null) getParams = {}; 
+		getParams._token = token();
+		var getParamsArr:Array = [];
+
+		var i:*;
+
+		for(i in getParams){
+			getParamsArr.push( i+"="+getParams[i] );
+		}
+
+		var action:Array = [];
+		for each (i in actionArr){
+			if(!!i){
+				action.push( i );
+			}
+		}
+
+		return apiUrl+action.join("/")+"?"+getParamsArr.join("&");
 	}
 
 	protected function determineJSAccess():void {
@@ -219,6 +261,13 @@ public class Scratch extends Sprite {
 		//Analyze.collectAssets(0, 119110);
 		//Analyze.checkProjects(56086, 64220);
 		//Analyze.countMissingAssets();
+		if(paramEditMode()){
+			setEditMode(paramEditMode());
+		}
+
+		if(paramProjectId()){
+			loadProject(paramProjectId());
+		}
 
 		handleStartupParameters();
 	}
@@ -289,6 +338,8 @@ public class Scratch extends Sprite {
 		sbxLoader.load(request);
 	}
 
+	public function consoleLog( obj:* ):void{
+		ExternalInterface.call('console.log', obj );
 	private var pendingExtensionURLs:Array;
 	private function loadGithubURL(urlOrArray:*):void {
 		if (!isExtensionDevMode) return;
@@ -1058,6 +1109,9 @@ public class Scratch extends Sprite {
 	protected function addFileMenuItems(b:*, m:Menu):void {
 		m.addItem('Load Project', runtime.selectProjectFile);
 		m.addItem('Save Project', exportProjectToFile);
+		m.addLine();
+		m.addItem('Save Project Online', saveProject);
+
 		if (runtime.recording || runtime.ready==ReadyLabel.COUNTDOWN || runtime.ready==ReadyLabel.READY) {
 			m.addItem('Stop Video', runtime.stopVideo);
 		} else {
@@ -1207,6 +1261,111 @@ public class Scratch extends Sprite {
 		if (loadInProgress) return;
 		var projIO:ProjectIO = new ProjectIO(this);
 		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
+	}
+
+	protected function loadProject( _projectID:int ):void{
+		var url:String = getUrl( ["projects" , _projectID] );
+
+		var request:URLRequest = new URLRequest(url);
+		request.method = URLRequestMethod.GET;
+
+		var loader:URLLoader = new URLLoader();
+
+		addLoadProgressBox("Loading Project");
+
+		function projectDataLoaded(e:Event):void {
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+
+			// Set Project name and id
+			setProjectName(data.project.name);
+			projectID = data.project.id;
+
+			// Load it
+			projIO.downloadProjectAssetsFromJson( data.project.json );
+		}
+
+		var projIO:ProjectIO = new ProjectIO(this);
+		loader.addEventListener(Event.COMPLETE, projectDataLoaded);
+		loader.load(request);
+	}
+
+	protected function saveProject(fromJS:Boolean = false):void {
+
+		function projectSaved(e:Event):void {
+
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+			if(data.projectID){
+				projectID = data.projectID;
+			}
+
+			saveProjectThumbnail();
+		}
+
+		function assetsSaved():void{
+				
+			var url:String = getUrl( ["projects" , projectID] );
+
+			delete stagePane.info.penTrails; // remove the penTrails bitmap saved in some old projects' info
+			stagePane.savePenLayer();
+			stagePane.updateInfo();
+
+			var requestVars:URLVariables = new URLVariables();
+			requestVars.data = util.JSON.stringify( stagePane );
+			requestVars.projectName = projectName();
+
+			var request:URLRequest = new URLRequest(url);
+			request.data = requestVars;
+			request.method = URLRequestMethod.POST;
+			if(projectID){
+				request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "PUT")];
+			}
+
+			var loader:URLLoader = new URLLoader();
+
+			loader.addEventListener(Event.COMPLETE, projectSaved);
+
+			loader.load(request);
+
+		}
+
+		function squeakSoundsConverted():void {
+
+			addLoadProgressBox("Saving Project");
+			
+			scriptsPane.saveScripts(false);
+			projIO.saveAssets(stagePane , assetsSaved );
+		}
+
+		if (loadInProgress) return;
+
+		var projIO:ProjectIO = new ProjectIO(this);
+		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
+	}
+
+	protected function saveProjectThumbnail():void	{
+
+		function thumbnailSaved():void{ removeLoadProgressBox() }
+		
+		var stagePicture:Array = stageObj().getPictureOfStage();
+
+		//create the request
+		var request:URLRequest = new URLRequest( app.getUrl( ["projects", projectID, "thumbnail", stagePicture[0]+".png" ] ) );
+		//set the proper contentType
+		request.contentType = "application/octet-stream";
+		request.method = URLRequestMethod.POST;
+		request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "POST")];
+		
+		//put it to the request
+		request.data = stagePicture[1];
+		 
+		//data will be sent with URLLoader
+		var loader:URLLoader = new URLLoader();
+		loader.addEventListener(Event.COMPLETE, thumbnailSaved );
+		 
+		loader.load(request);	
+
 	}
 
 	public static function fixFileName(s:String):String {
