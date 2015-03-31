@@ -32,12 +32,20 @@ import flash.errors.IllegalOperationError;
 import flash.events.*;
 import flash.geom.Point;
 import flash.geom.Rectangle;
+import flash.net.URLRequest;
+import flash.net.URLRequestMethod;
+import flash.net.URLRequestHeader;
+import flash.net.URLLoaderDataFormat;
+import flash.net.URLLoader;
+import flash.net.URLVariables;
 import flash.net.FileReference;
 import flash.net.FileReferenceList;
+import flash.net.navigateToURL;
 import flash.net.LocalConnection;
 import flash.system.*;
 import flash.text.*;
 import flash.utils.*;
+import flash.external.*;
 
 import interpreter.*;
 
@@ -63,6 +71,7 @@ public class Scratch extends Sprite {
 	public static var app:Scratch; // static reference to the app, used for debugging
 
 	// Display modes
+	public var isFullScreen:Boolean; // true when project editor showing, false when only the player is showing
 	public var editMode:Boolean; // true when project editor showing, false when only the player is showing
 	public var isOffline:Boolean; // true when running as an offline (i.e. stand-alone) app
 	public var isSmallPlayer:Boolean; // true when displaying as a scaled-down player (e.g. in search results)
@@ -70,8 +79,12 @@ public class Scratch extends Sprite {
 	public var isIn3D:Boolean;
 	public var render3D:IRenderIn3D;
 	public var isArmCPU:Boolean;
-	public var jsEnabled:Boolean = false; // true when the SWF can talk to the webpage
+	public var jsEnabled:Boolean = true; // true when the SWF can talk to the webpage
 	public var ignoreResize:Boolean = false; // If true, temporarily ignore resize events.
+	public var isNewProject:Boolean = false;
+	public var urls:Object;
+
+	public var projectEditable = true;
 
 	// Runtime
 	public var runtime:ScratchRuntime;
@@ -79,6 +92,8 @@ public class Scratch extends Sprite {
 	public var extensionManager:ExtensionManager;
 	public var server:Server;
 	public var gh:GestureHandler;
+	public var studioID:String = '';
+	public var inStudioID:String = '';
 	public var projectID:String = '';
 	public var projectOwner:String = '';
 	public var projectIsPrivate:Boolean;
@@ -86,6 +101,12 @@ public class Scratch extends Sprite {
 	public var loadInProgress:Boolean;
 	public var debugOps:Boolean = false;
 	public var debugOpCmd:String = '';
+	public var projectUser:Object;
+	public var loggedUser:Object;
+	public var remixOf:String = "";
+	public var assetsList:Array = [];
+
+	protected var autosaveTimer:int = -1;
 
 	protected var autostart:Boolean;
 	private var viewedObject:ScratchObj;
@@ -113,6 +134,11 @@ public class Scratch extends Sprite {
 	public var soundsPart:SoundsPart;
 	public const tipsBarClosedWidth:int = 17;
 
+	public var checkIfSaveNeeded = true;
+
+	public var apiUrl:String = "http://localhost/scratch/public/api/v1/";
+
+
 	public function Scratch() {
 		loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler);
 		app = this;
@@ -121,8 +147,116 @@ public class Scratch extends Sprite {
 		determineJSAccess();
 	}
 
+	public function token():String{
+		return loaderInfo.parameters["csrf_token"];
+	}
+
+	public function paramProjectId():String{
+		return loaderInfo.parameters["projectID"];
+	}
+
+	public function paramEditMode():Boolean{
+		return loaderInfo.parameters["editMode"];
+	}
+
+	public function paramUserMenu():Object{
+		return util.JSON.parse( loaderInfo.parameters["userMenu"] );
+	}
+
+	public function getLoggedUser():Object{
+		return loggedUser;
+	}
+
+	public function getProjectUser():Object{
+		return projectUser;
+	}
+
+	public function getIsLTIUser():Object{
+		if(loaderInfo.parameters["lti_user"]){
+			return true;
+		}else{
+			return false;
+		}
+	}
+
+	public function setLoggedUser( _loggedUser:Object ):void{
+		loggedUser = _loggedUser;
+		if(topBarPart){
+			topBarPart.addUserButton(true);
+		}
+		if( isNewProject ){
+			setProjectUser( loggedUser );
+		}
+	}
+
+	public function setProjectUser( _projectUser:Object ):void{
+		projectUser = _projectUser;
+		if(stagePart){
+			stagePart.setProjectInfo( _projectUser.name!="" ?"by "+_projectUser.name : "" );
+		}
+	}
+
+	public function setProjectID( _projectID:* ):void{
+		projectID = String(_projectID);
+		jsSetProjectID( _projectID );
+	}
+
+	public function projectInfo():String{
+		if(projectUser){
+			return projectUser.name!="" ?"by "+projectUser.name : "";
+		}
+		return "";
+	}
+
+
+	public function initLoaderInfo():void{
+
+		isNewProject = loaderInfo.parameters.newProject;
+
+		if(loaderInfo.parameters["urls"]) urls = util.JSON.parse( loaderInfo.parameters["urls"] );
+		else urls = null;
+
+		if(urls){
+			apiUrl = urls.apiUrl;
+			log(apiUrl);
+		}
+		if(loaderInfo.parameters["studioID"]){
+			studioID = loaderInfo.parameters["studioID"];
+		}
+		if(loaderInfo.parameters["inStudioID"]){
+			inStudioID = loaderInfo.parameters["inStudioID"];
+		}
+
+		if(loaderInfo.parameters["projectUser"]) setProjectUser( util.JSON.parse( loaderInfo.parameters["projectUser"] ) );
+		else setProjectUser( {name:'', id:-1} );
+
+		if(loaderInfo.parameters["loggedUser"]) setLoggedUser( util.JSON.parse( loaderInfo.parameters["loggedUser"] ) );
+		else setLoggedUser( {name:'', id:-1} );
+	}
+
+	public function getUrl( actionArr:Array , getParams:Object=null ):String{
+		if(getParams == null) getParams = {}; 
+		getParams._token = token();
+		var getParamsArr:Array = [];
+
+		var i:*;
+
+		for(i in getParams){
+			getParamsArr.push( i+"="+getParams[i] );
+		}
+
+		var action:Array = [];
+		for each (i in actionArr){
+			if(!!i){
+				action.push( i );
+			}
+		}
+
+		return apiUrl+action.join("/")+"?"+getParamsArr.join("&");
+	}
+
 	protected function initialize():void {
-		isOffline = loaderInfo.url.indexOf('http:') == -1 && loaderInfo.url.indexOf('https:') == -1;
+		isOffline = false; //loaderInfo.url.indexOf('http:') == -1 && loaderInfo.url.indexOf('https:') == -1;
 		checkFlashVersion();
 		initServer();
 
@@ -140,6 +274,7 @@ public class Scratch extends Sprite {
 		initInterpreter();
 		initRuntime();
 		initExtensionManager();
+		initLoaderInfo();
 		Translator.initializeLanguageList();
 
 		playerBG = new Shape(); // create, but don't add
@@ -169,6 +304,23 @@ public class Scratch extends Sprite {
 		//Analyze.collectAssets(0, 119110);
 		//Analyze.checkProjects(56086, 64220);
 		//Analyze.countMissingAssets();
+
+		/*
+		if(paramEditMode()){
+			setEditMode(paramEditMode());
+		}
+		*/
+		projectEditable = paramEditMode();
+
+		if(paramProjectId()){
+			loadProject(paramProjectId());
+		}
+
+		setupExternalInterface(false);
+	}
+
+	public function consoleLog( obj:* ):void{
+		externalCall('console.log', null, obj );
 	}
 
 	protected function initTopBarPart():void {
@@ -197,9 +349,19 @@ public class Scratch extends Sprite {
 		addExternalCallback('ASloadExtension', extensionManager.loadRawExtension);
 		addExternalCallback('ASextensionCallDone', extensionManager.callCompleted);
 		addExternalCallback('ASextensionReporterDone', extensionManager.reporterCompleted);
+		addExternalCallback('ASsetEditMode', setEditMode );
+		addExternalCallback('ASloggedIn', setLoggedUser );
+		addExternalCallback('ASprojectChanged', reloadProject );
+		addExternalCallback('ASsetSmallStage', setSmallStageMode );
+		addExternalCallback('AStakeScriptsScreenshot', takeScriptsScreenshot );
+		addExternalCallback('ASsetPresentationMode', setPresentationMode );
+
+		jsInit();
 	}
 
-	public function showTip(tipName:String):void {}
+	public function showTip(tipName:String):void {
+		this.jsShowBlockHelp(tipName);
+	}
 	public function closeTips():void {}
 	public function reopenTips():void {}
 	public function tipsWidth():int { return 0; }
@@ -230,15 +392,21 @@ public class Scratch extends Sprite {
 		{
 			var error:Error = event.error as Error;
 			logException(error);
+			consoleLog("_ONE_");
+			consoleLog(error.getStackTrace());
+			consoleLog(error.toString());
 		}
 		else if (event.error is ErrorEvent)
 		{
 			var errorEvent:ErrorEvent = event.error as ErrorEvent;
 			logMessage(errorEvent.toString());
+			consoleLog("_TWO_");
+			consoleLog(errorEvent.toString());
 		}
 	}
 
 	public function log(s:String):void {
+		externalCall('console.log', null, s );
 		trace(s);
 	}
 
@@ -410,6 +578,11 @@ public class Scratch extends Sprite {
 				if(jsEnabled) externalCall('tip_bar_api.show');
 			}
 		}
+
+		if(!isFullScreen || !wasEditing){
+			jsSetFullScreen(enterPresentation);
+		}
+
 		if (isOffline) {
 			stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
 		}
@@ -587,6 +760,7 @@ public class Scratch extends Sprite {
 			hide(tabsPart);
 			setTab(null); // hides scripts, images, and sounds
 		}
+		jsSetFullScreen(editMode);
 		stagePane.updateListWatchers();
 		show(stagePart); // put stage in front
 		fixLayout();
@@ -719,9 +893,25 @@ public class Scratch extends Sprite {
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 
+	public function isProjectOwner():Boolean{
+		return getLoggedUser().id == getProjectUser().id;
+	}
+
 	protected function addFileMenuItems(b:*, m:Menu):void {
-		m.addItem('Load Project', runtime.selectProjectFile);
-		m.addItem('Save Project', exportProjectToFile);
+
+		if(getLoggedUser().id == getProjectUser().id || isNewProject ){
+			if(projectEditable){
+				m.addItem('Save Now', saveProject);
+				m.addItem('Save as Copy', saveAsCopy);
+				m.addLine();
+			}
+		}
+
+		m.addItem('Upload from your computer', runtime.selectProjectFile);
+		m.addItem('Download to your computer', exportProjectToFile);
+		m.addLine();
+
+
 		if (canUndoRevert()) {
 			m.addLine();
 			m.addItem('Undo Revert', undoRevert);
@@ -762,6 +952,34 @@ public class Scratch extends Sprite {
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 
+	public function showUserMenu(b:*):void {
+
+		var m:Menu = new Menu(null, 'User', CSS.topBarColor, 28);
+
+		m.addItem('My Projects', function():void{
+			if(checkSaveNeeded( goToMyProjects )){ return; }
+			goToMyProjects();
+		});
+
+		if(!getIsLTIUser()){
+			m.addItem('Logout', function():void{
+				if(checkSaveNeeded( goToLogout )){ return; }
+				goToLogout();
+			});
+		}
+
+		var p:Point = b.localToGlobal(new Point(0, 0));
+		m.showOnStage(stage, b.x+b.width-m.width, topBarPart.bottom() - 1);
+
+	}
+
+	protected function goToMyProjects():void{
+		navigateToURL( new URLRequest( paramUserMenu().my_projects ), "_self");
+	}
+	protected function goToLogout():void{
+		navigateToURL( new URLRequest( paramUserMenu().logout ), "_self" );
+	}
+
 	protected function addEditMenuItems(b:*, m:Menu):void {
 		m.addLine();
 		m.addItem('Edit block colors', editBlockColors);
@@ -794,7 +1012,11 @@ public class Scratch extends Sprite {
 			topBarPart.refresh();
 			stagePart.refresh();
 		}
-		saveProjectAndThen(clearProject);
+		if( loggedUser.id == -1 || loggedUser.id != projectUser.id ){
+			clearProject();
+		}else{
+			saveProjectAndThen(clearProject);
+		}
 	}
 
 	protected function saveProjectAndThen(postSaveAction:Function = null):void {
@@ -804,8 +1026,8 @@ public class Scratch extends Sprite {
 		function proceedWithoutSaving():void { d.cancel(); postSaveAction() }
 		function save():void {
 			d.cancel();
-			exportProjectToFile(); // if this succeeds, saveNeeded will become false
-			if (!saveNeeded) postSaveAction();
+			saveProject(postSaveAction); // if this succeeds, saveNeeded will become false
+			// if (!saveNeeded) postSaveAction();
 		}
 		if (postSaveAction == null) postSaveAction = doNothing;
 		if (!saveNeeded) {
@@ -835,6 +1057,379 @@ public class Scratch extends Sprite {
 		if (loadInProgress) return;
 		var projIO:ProjectIO = new ProjectIO(this);
 		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
+	}
+
+	public function setAssetInList(md5:String):void{
+		if(!assetExists(md5)){
+			assetsList.push(md5);
+		}
+	}
+
+	public function assetExists( md5:String ):Boolean{
+		return assetsList.indexOf(md5) != -1;
+	}
+
+	protected function reloadProject():void{
+		log("Reload Project");
+		log(projectID);
+		loadProject( projectID );	
+	}
+
+	protected function loadProject( _projectID:* ):void{
+		var url:String = getUrl( ["projects" , _projectID] );
+
+		var request:URLRequest = new URLRequest(url);
+		request.method = URLRequestMethod.GET;
+
+		var loader:URLLoader = new URLLoader();
+
+		addLoadProgressBox("Loading Project");
+
+		function projectDataLoaded(e:Event):void {
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+
+			// Set Project name and id
+			setProjectName(data.project.name);
+			projectID = data.project.id;
+
+			// Load it
+			projIO.downloadProjectAssetsFromJson( data.project.json );
+		}
+
+		var projIO:ProjectIO = new ProjectIO(this);
+		loader.addEventListener(Event.COMPLETE, handleApiRequest( projectDataLoaded, "load project" ) );
+		loader.load(request);
+	}
+
+	public function startAutoSave():void{
+		if(autosaveTimer != -1){
+			clearTimeout(autosaveTimer);
+			autosaveTimer = -1;
+		}
+
+
+		if( getLoggedUser() && getProjectUser() && getLoggedUser().id == getProjectUser().id ){
+
+			autosaveTimer = setTimeout(function():void{
+
+				saveProject(null,false);
+
+			},20000);
+
+		}
+
+	}
+
+	public function saveProject( whenDone:Function=null, showProgressBar:Boolean=true ):void {
+
+		if(!editMode || !projectEditable){
+			if(whenDone != null){
+				whenDone();
+			}
+			return;
+		}
+
+		function thumbnailSaved():void {
+			consoleLog("Thumbnaisl saved");
+			removeLoadProgressBox();
+			clearSaveNeeded();
+
+			if(whenDone != null){
+				whenDone();
+			}
+		}
+
+		function projectSaved(e:Event):void{
+
+				
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+			if(data.projectID){
+				setProjectID( data.projectID );
+			}
+			isNewProject = false;
+			consoleLog("Project Save.. thunbbnail");
+			
+			if(topBarPart.contains(topBarPart.unsavedText)){
+				topBarPart.unsavedText.text = "Saved";
+			}
+			topBarPart.refresh();
+			
+
+			saveProjectThumbnail( thumbnailSaved );
+		}
+
+		function assetsSaved():void{
+
+			var url:String = getUrl( ["projects" , projectID] );
+
+			delete stagePane.info.penTrails; // remove the penTrails bitmap saved in some old projects' info
+			stagePane.savePenLayer();
+			stagePane.updateInfo();
+
+			var requestVars:URLVariables = new URLVariables();
+			requestVars.json = util.JSON.stringify( stagePane );
+			requestVars.name = projectName();
+
+			if(remixOf != ""){
+				requestVars.remix_of = remixOf;
+				remixOf = "";
+			}
+			if(studioID != ""){
+				requestVars.studioID = studioID;
+			}
+
+			var request:URLRequest = new URLRequest(url);
+			request.data = requestVars;
+			request.method = URLRequestMethod.POST;
+
+			var loader:URLLoader = new URLLoader();
+
+			loader.addEventListener(Event.COMPLETE, handleApiRequest(projectSaved, "save the project") );
+
+			loader.load(request);
+
+		}
+
+		function squeakSoundsConverted():void {
+
+			if(showProgressBar){
+				addLoadProgressBox("Saving Project");
+			}
+			
+			scriptsPane.saveScripts(false);
+			projIO.saveAssets(stagePane , assetsSaved );
+
+		}
+
+		if (loadInProgress) return;
+
+		if(autosaveTimer != -1){
+			clearTimeout(autosaveTimer);
+			autosaveTimer = -1;
+		}
+
+		hide(topBarPart.saveButton);
+		
+		topBarPart.addChild(topBarPart.unsavedText);
+		if(topBarPart.contains(topBarPart.unsavedText)){
+			topBarPart.unsavedText.text = "Saving...";
+		}
+
+		topBarPart.refresh();
+
+		jsSaveNotNeeded();
+
+		if( projectName() == ""){
+			setProjectName("Untitled");
+		}
+
+		var projIO:ProjectIO = new ProjectIO(this);
+		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
+	}
+
+	public function remixProject( cb:Function=null ):void{
+		if(getLoggedUser().id == -1){
+			jsShowLoginModal();
+		}else{
+			studioID = inStudioID=="" ?null :inStudioID;
+			remixOf = projectID;
+			setProjectID("");
+			setProjectUser( getLoggedUser() );
+			setProjectName( projectName()+" Remix" );
+			saveProject(projectRemixed);
+
+			function projectRemixed():void{
+				DialogBox.notify(
+					'Success!',
+					'Project successfully remixed',
+					stage);
+
+				if(cb != null){
+					cb();
+				}
+			}
+		}
+	}
+
+	public function saveAsCopy():void{
+		if(getLoggedUser().id == -1){
+			jsShowLoginModal();
+		}else{
+			// studioID = null;
+			// remixOf = projectID;
+			setProjectID("");
+			setProjectUser( getLoggedUser() );
+			setProjectName( projectName()+" Copy" );
+			saveProject(projectRemixed);
+
+			function projectRemixed():void{
+				DialogBox.notify(
+					'Success!',
+					'Project successfully remixed',
+					stage);
+			}
+		}
+	}
+
+	public function handleApiRequest( callback:Function, action:String=null ):Function{
+
+		return function( e:Event ):void{
+
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+
+			switch(data.error){
+				case "unauthorized":
+					DialogBox.notify(
+						'Error!',
+						'You cannot save this project',
+						stage);
+					removeLoadProgressBox();
+					break;
+				case "unauthenticated":
+					jsShowLoginModal();
+					removeLoadProgressBox();
+					break;
+				default:
+					callback(e);
+					break;
+			}
+		}
+
+	}
+
+	public function checkSaveNeeded( afterSave:Function ):Boolean{
+		if(saveNeeded && checkIfSaveNeeded && projectEditable ){
+			if( getLoggedUser().id == getProjectUser().id ){
+
+				DialogBox.confirmCustom(
+					'There are unsaved changes. Do you want to save your changes ?', 
+					stage, 
+					// Yes
+					function():void{
+						saveProject(function():void{
+							afterSave();
+						});
+					},
+					// No
+					function():void{
+						checkIfSaveNeeded = false;
+						afterSave();
+						checkIfSaveNeeded = true;
+					},
+					// Cancel
+					function():void{
+						
+					},
+					null,
+					"Yes",
+					"No",
+					"Cancel"
+				);
+
+			}else{
+
+				DialogBox.confirmCustom(
+					'You\'ve made changes. Do you want to remix the project ?', 
+					stage, 
+					function():void{
+						remixProject(function():void{
+							afterSave();
+						});
+					},
+					// No
+					function():void{
+						checkIfSaveNeeded = false;
+						afterSave();
+						checkIfSaveNeeded = true;
+					},
+					// Cancel
+					function():void{
+						
+					},
+					null,
+					"Yes",
+					"No",
+					"Cancel"
+				);
+
+			}
+			return true;
+		}
+		return false;
+	}
+
+
+	public function seeProjectPage():void{
+
+		if(checkSaveNeeded( seeProjectPage )){ return; }
+
+		var originalProjectId:String = paramProjectId();
+		if( ( originalProjectId == "0" && projectID == "" ) || originalProjectId == projectID || projectID == ""){
+			setEditMode(false);
+			return;
+		}
+		if( originalProjectId != projectID ){
+			var projectUrl:String = "http://localhost/scratch/public/projects/"+projectID;
+			if(urls){
+				projectUrl = urls.projectUrl.replace("{projectID}", projectID);
+			}
+			navigateToURL( new URLRequest(projectUrl), "_self" );
+		}
+	}
+
+	protected function takeScriptsScreenshot(){
+
+		function scriptImageSaved(e):void{ 
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+			jsAttachmentUploaded(data);
+		}
+		
+		var stagePicture:Array = scriptsPane.getScriptsScreenshot();
+
+		//create the request
+		var request:URLRequest = new URLRequest( app.getUrl( ["attachment", stagePicture[0]+".png" ] ) );
+		//set the proper contentType
+		request.contentType = "application/octet-stream";
+		request.method = URLRequestMethod.POST;
+		
+		//put it to the request
+		request.data = stagePicture[1];
+		 
+		//data will be sent with URLLoader
+		var loader:URLLoader = new URLLoader();
+		loader.addEventListener(Event.COMPLETE, scriptImageSaved );
+		 
+		loader.load(request);
+
+	}
+
+	protected function saveProjectThumbnail( whenDone:Function=null ):void	{
+
+		function thumbnailSaved():void{ 
+			if(whenDone != null) whenDone();
+		}
+		
+		var stagePicture:Array = stageObj().getPictureOfStage();
+
+		//create the request
+		var request:URLRequest = new URLRequest( app.getUrl( ["projects", projectID, "thumbnail", stagePicture[0]+".png" ] ) );
+		//set the proper contentType
+		request.contentType = "application/octet-stream";
+		request.method = URLRequestMethod.POST;
+		
+		//put it to the request
+		request.data = stagePicture[1];
+		 
+		//data will be sent with URLLoader
+		var loader:URLLoader = new URLLoader();
+		loader.addEventListener(Event.COMPLETE, handleApiRequest(thumbnailSaved, "save the project thumbnail") );
+		 
+		loader.load(request);	
+
 	}
 
 	public static function fixFileName(s:String):String {
@@ -897,8 +1492,11 @@ public class Scratch extends Sprite {
 
 	public function startNewProject(newOwner:String, newID:String):void {
 		runtime.installNewProject();
+		jsSetProjectID("editor");
+		setProjectUser( getLoggedUser() );
 		projectOwner = newOwner;
 		projectID = newID;
+		isNewProject = true;
 		projectIsPrivate = true;
 		loadInProgress = false;
 	}
@@ -915,6 +1513,14 @@ public class Scratch extends Sprite {
 		saveNeeded = true;
 		if (!wasEdited) saveNow = true; // force a save on first change
 		clearRevertUndo();
+		startAutoSave();
+		if(isProjectOwner() && projectEditable){
+			topBarPart.addChild(topBarPart.saveButton);
+		}
+		hide(topBarPart.unsavedText);
+		topBarPart.refresh();
+
+		jsSaveNeeded();
 	}
 
 	protected function clearSaveNeeded():void {
@@ -1188,14 +1794,44 @@ public class Scratch extends Sprite {
 	//------------------------------
 
 	public function externalInterfaceAvailable():Boolean {
-		return false;
+		return true;
+	}
+
+	public function jsSetProjectID( _projectID:* ):void {
+		externalCall('editor.setProjectID', null, _projectID );
+	}
+
+	public function jsSetFullScreen( fullscreen:Boolean ):void{
+		isFullScreen = fullscreen;
+		externalCall('editor.setFullScreen', null, fullscreen );
+	}
+	public function jsProjectTitleChange( projectTitle:String ):void{
+		externalCall('editor.projectTitleChanged', null, projectTitle );
+	}
+	public function jsShowLoginModal():void{
+		externalCall('editor.showLoginModal');
+	}
+	public function jsInit():void{
+		externalCall('editor.init');
+	}
+	public function jsSaveNeeded():void{
+		externalCall('editor.saveNeeded');
+	}
+	public function jsShowBlockHelp( name:String ):void{
+		externalCall('editor.showBlockHelp', null, name );
+	}
+	public function jsSaveNotNeeded():void{
+		externalCall('editor.saveNotNeeded');
+	}
+	public function jsAttachmentUploaded( attachment:Object ):void{
+		externalCall('editor.attchmentUploaded', null, attachment );
 	}
 
 	public function externalCall(functionName:String, returnValueCallback:Function = null, ...args):void {
-		throw new IllegalOperationError('Must override this function.');
+		ExternalInterface.call( functionName, args );
 	}
 
 	public function addExternalCallback(functionName:String, closure:Function):void {
-		throw new IllegalOperationError('Must override this function.');
+		ExternalInterface.addCallback( functionName , closure );
 	}
 }}

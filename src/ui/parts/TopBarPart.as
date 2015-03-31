@@ -37,6 +37,11 @@ public class TopBarPart extends UIPart {
 
 	protected var fileMenu:IconButton;
 	protected var editMenu:IconButton;
+	protected var userMenu:IconButton;
+	protected var projectPageButton:IconButton;
+	protected var remixButton:IconButton;
+	public var saveButton:IconButton;
+	public var unsavedText:TextField = makeLabel("Saved", CSS.topBarButtonFormatGray, 2, 2);
 
 	private var copyTool:IconButton;
 	private var cutTool:IconButton;
@@ -67,14 +72,22 @@ public class TopBarPart extends UIPart {
 		if (Scratch.app) {
 			Scratch.app.showFileMenu(Menu.dummyButton());
 			Scratch.app.showEditMenu(Menu.dummyButton());
+			Scratch.app.showUserMenu(Menu.dummyButton());
 		}
 		return ['File', 'Edit', 'Tips', 'Duplicate', 'Delete', 'Grow', 'Shrink', 'Block help', 'Offline Editor'];
 	}
 
 	protected function removeTextButtons():void {
 		if (fileMenu.parent) {
-			removeChild(fileMenu);
-			removeChild(editMenu);
+			if(this.contains(projectPageButton)) removeChild(projectPageButton);
+
+			if(this.contains(remixButton)) removeChild(remixButton);
+			if(this.contains(saveButton)) removeChild(saveButton);
+
+			if(this.contains(fileMenu)) removeChild(fileMenu);
+			if(this.contains(editMenu)) removeChild(editMenu);
+			if(this.contains(userMenu)) removeChild(userMenu);
+
 		}
 	}
 
@@ -100,6 +113,8 @@ public class TopBarPart extends UIPart {
 		var buttonY:int = 5;
 		languageButton.y = buttonY - 1;
 
+		var leftX:int = this.right();
+
 		// new/more/tips buttons
 		const buttonSpace:int = 12;
 		var nextX:int = languageButton.x + languageButton.width + 13;
@@ -111,6 +126,33 @@ public class TopBarPart extends UIPart {
 		editMenu.y = buttonY;
 		nextX += editMenu.width + buttonSpace;
 
+		leftX -= userMenu.width + buttonSpace;
+		userMenu.y = buttonY;
+		userMenu.x = leftX;
+
+		leftX -= projectPageButton.width + buttonSpace;
+		projectPageButton.y = buttonY;
+		projectPageButton.x = leftX;
+
+		if( remixButton.visible ){
+			leftX -= remixButton.width + buttonSpace;
+			remixButton.y = buttonY;
+			remixButton.x = leftX;
+		}
+
+		if( this.contains(unsavedText) ){
+			leftX -= unsavedText.width + buttonSpace;
+			unsavedText.y = buttonY;
+			unsavedText.x = leftX;
+		}
+
+		if( this.contains(saveButton) ){
+			leftX -= saveButton.width + buttonSpace;
+			saveButton.y = buttonY;
+			saveButton.x = leftX;
+		}
+		
+
 		// cursor tool buttons
 		var space:int = 3;
 		copyTool.x = app.isOffline ? 493 : 427;
@@ -118,7 +160,7 @@ public class TopBarPart extends UIPart {
 		growTool.x = cutTool.right() + space;
 		shrinkTool.x = growTool.right() + space;
 		helpTool.x = shrinkTool.right() + space;
-		copyTool.y = cutTool.y = shrinkTool.y = growTool.y = helpTool.y = buttonY - 3;
+		copyTool.y = cutTool.y = shrinkTool.y = growTool.y = /*helpTool.y =*/ buttonY - 3;
 
 		if(offlineNotice) {
 			offlineNotice.x = w - offlineNotice.width - 5;
@@ -130,12 +172,49 @@ public class TopBarPart extends UIPart {
 		if (app.isOffline) {
 			helpTool.visible = app.isOffline;
 		}
+		
+		remixButton.visible = app.getLoggedUser().id != app.getProjectUser().id;
+
 		fixLayout();
 	}
 
 	protected function addTextButtons():void {
+		addChild(projectPageButton = makeMenuButton('Show Project page', function(b:*):void{
+			app.seeProjectPage();
+		}, false));
+
+		addChild(remixButton = makeMenuButton('Remix', function(b:*):void{
+			app.remixProject();
+		}, false));
+		
+		saveButton = makeMenuButton('Save Now', function(b:*):void{
+			app.saveProject();
+		}, false);
+
+		addChild(unsavedText);
+		
 		addChild(fileMenu = makeMenuButton('File', app.showFileMenu, true));
 		addChild(editMenu = makeMenuButton('Edit', app.showEditMenu, true));
+		addUserButton();
+	}
+
+	public function addUserButton( _refresh:Boolean=false ):void{
+		var user:Object = app.getLoggedUser();
+
+		if(userMenu){
+			if(this.contains(userMenu)) removeChild(userMenu);
+		}
+
+		if(user.id == -1){
+			addChild(userMenu = makeMenuButton('Login', function(b:*):void{
+				app.jsShowLoginModal();
+			}, false));
+		}else{
+			addChild(userMenu = makeMenuButton(user.name, app.showUserMenu, true));
+		}
+		if(_refresh){
+			refresh();
+		}
 	}
 
 	private function addToolButtons():void {

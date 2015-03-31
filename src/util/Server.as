@@ -83,11 +83,14 @@ public class Server implements IServer {
 //			whenDone(BackpackPart.localAssets[md5]);
 //			return null;
 //		}
-		return fetchAsset('media/' + md5, whenDone);
+		return fetchAsset( Scratch.app.getUrl( ['assets',md5] ), function( data:ByteArray ):void{
+			Scratch.app.setAssetInList(md5);
+			whenDone(data);
+		});
 	}
 
 	public function getMediaLibrary(type:String, whenDone:Function):URLLoader {
-		return getAsset('libs/'+type+'Library.json', whenDone);
+		return fetchAsset( Scratch.app.getUrl( ['assets', 'library', type ] ) , whenDone);
 	}
 
 	public function getThumbnail(md5:String, w:int, h:int, whenDone:Function):URLLoader {

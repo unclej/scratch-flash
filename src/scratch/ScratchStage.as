@@ -235,6 +235,12 @@ public class ScratchStage extends ScratchObj {
 		file.save(pngData, 'stage.png');
 	}
 
+	public function getPictureOfStage():Array{
+		var pngData:ByteArray = projectThumbnailPNG();
+		var md5:String = by.blooddy.crypto.MD5.hashBytes(pngData);
+		return [md5, pngData];
+	}
+
 	/* Scrolling support */
 
 	public var xScroll:Number = 0;

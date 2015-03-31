@@ -179,6 +179,8 @@ public class ScratchObj extends Sprite {
 		clearCachedBitmap();
 		adjustForRotationCenter();
 		updateRenderDetails(0);
+
+		Scratch.app.startAutoSave();
 	}
 
 	protected function updateRenderDetails(reason:uint):void {
