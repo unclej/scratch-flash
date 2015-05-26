@@ -43,6 +43,9 @@ public class TopBarPart extends UIPart {
 
 	protected var fileMenu:IconButton;
 	protected var editMenu:IconButton;
+	protected var userMenu:IconButton;
+	protected var projectPageButton:IconButton;
+	protected var remixButton:IconButton;
 
 	private var copyTool:IconButton;
 	private var cutTool:IconButton;
@@ -91,14 +94,19 @@ public class TopBarPart extends UIPart {
 		if (Scratch.app) {
 			Scratch.app.showFileMenu(Menu.dummyButton());
 			Scratch.app.showEditMenu(Menu.dummyButton());
+			Scratch.app.showUserMenu(Menu.dummyButton());
 		}
 		return ['File', 'Edit', 'Tips', 'Duplicate', 'Delete', 'Grow', 'Shrink', 'Block help', 'Offline Editor'];
 	}
 
 	protected function removeTextButtons():void {
 		if (fileMenu.parent) {
+			removeChild(projectPageButton);
+			removeChild(remixButton);
+
 			removeChild(fileMenu);
 			removeChild(editMenu);
+			removeChild(userMenu);
 		}
 	}
 
@@ -140,6 +148,8 @@ public class TopBarPart extends UIPart {
 		languageButton.y = buttonY - 1;
 		nextX += languageButton.width + buttonSpace;
 
+		var leftX = this.right();
+
 		// new/more/tips buttons
 		fileMenu.x = nextX;
 		fileMenu.y = buttonY;
@@ -148,6 +158,19 @@ public class TopBarPart extends UIPart {
 		editMenu.x = nextX;
 		editMenu.y = buttonY;
 		nextX += editMenu.width + buttonSpace;
+
+
+		leftX -= userMenu.width + buttonSpace;
+		userMenu.y = buttonY;
+		userMenu.x = leftX;
+
+		leftX -= projectPageButton.width + buttonSpace;
+		projectPageButton.y = buttonY;
+		projectPageButton.x = leftX;
+
+		leftX -= remixButton.width + buttonSpace;
+		remixButton.y = buttonY;
+		remixButton.x = leftX;
 
 		// cursor tool buttons
 		var space:int = 3;
@@ -189,6 +212,8 @@ public class TopBarPart extends UIPart {
 		if (app.isOffline) {
 			helpTool.visible = app.isOffline;
 		}
+		
+		remixButton.visible = app.getLoggedUser().id != app.getProjectUser().id;
 
 		if (Scratch.app.isExtensionDevMode) {
 			var hasExperimental:Boolean = app.extensionManager.hasExperimentalExtensions();
@@ -205,8 +230,36 @@ public class TopBarPart extends UIPart {
 	}
 
 	protected function addTextButtons():void {
+		addChild(projectPageButton = makeMenuButton('Show Project page', function(b:*):void{
+			app.seeProjectPage();
+		}, false));
+
+		addChild(remixButton = makeMenuButton('Remix', function(b:*):void{
+			app.remixProject();
+		}, false));
+
 		addChild(fileMenu = makeMenuButton('File', app.showFileMenu, true));
 		addChild(editMenu = makeMenuButton('Edit', app.showEditMenu, true));
+		addUserButton();
+	}
+
+	public function addUserButton( _refresh:Boolean=false ):void{
+		var user:Object = app.getLoggedUser();
+
+		if(userMenu){
+			removeChild(userMenu);
+		}
+
+		if(user.id == -1){
+			addChild(userMenu = makeMenuButton('Login', function(b:*):void{
+				app.jsShowLoginModal();
+			}, false));
+		}else{
+			addChild(userMenu = makeMenuButton(user.name, app.showUserMenu, true));
+		}
+		if(_refresh){
+			refresh();
+		}
 	}
 
 	private function addToolButtons():void {

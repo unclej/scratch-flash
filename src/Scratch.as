@@ -44,6 +44,7 @@ import flash.net.URLVariables;
 import flash.net.FileFilter;
 import flash.net.FileReference;
 import flash.net.FileReferenceList;
+import flash.net.navigateToURL;
 import flash.net.LocalConnection;
 import flash.net.URLLoader;
 import flash.net.URLLoaderDataFormat;
@@ -85,6 +86,7 @@ public class Scratch extends Sprite {
 	public static var app:Scratch; // static reference to the app, used for debugging
 
 	// Display modes
+	public var isFullScreen:Boolean; // true when project editor showing, false when only the player is showing
 	public var hostProtocol:String = 'http';
 	public var editMode:Boolean; // true when project editor showing, false when only the player is showing
 	public var isOffline:Boolean; // true when running as an offline (i.e. stand-alone) app
@@ -93,8 +95,10 @@ public class Scratch extends Sprite {
 	public var isIn3D:Boolean;
 	public var render3D:DisplayObjectContainerIn3D;
 	public var isArmCPU:Boolean;
-	public var jsEnabled:Boolean = false; // true when the SWF can talk to the webpage
+	public var jsEnabled:Boolean = true; // true when the SWF can talk to the webpage
 	public var ignoreResize:Boolean = false; // If true, temporarily ignore resize events.
+	public var isNewProject:Boolean = false;
+	public var urls:Object;
 	public var isExtensionDevMode:Boolean = false; // If true, run in extension development mode (as on ScratchX)
 	public var isMicroworld:Boolean = false;
 
@@ -106,6 +110,7 @@ public class Scratch extends Sprite {
 	public var extensionManager:ExtensionManager;
 	public var server:Server;
 	public var gh:GestureHandler;
+	public var studioID:String = '';
 	public var projectID:String = '';
 	public var projectOwner:String = '';
 	public var projectIsPrivate:Boolean;
@@ -113,6 +118,9 @@ public class Scratch extends Sprite {
 	public var loadInProgress:Boolean;
 	public var debugOps:Boolean = false;
 	public var debugOpCmd:String = '';
+	public var projectUser:Object;
+	public var loggedUser:Object;
+	public var remixOf:String = "";
 
 	protected var autostart:Boolean;
 	private var viewedObject:ScratchObj;
@@ -140,7 +148,7 @@ public class Scratch extends Sprite {
 	public var soundsPart:SoundsPart;
 	public const tipsBarClosedWidth:int = 17;
 
-	public const apiUrl:String = "http://localhost/scratch/public/api/v1/";
+	public var apiUrl:String = "http://localhost/scratch/public/api/v1/";
 
 	public var logger:Log = new Log(16);
 
@@ -163,6 +171,70 @@ public class Scratch extends Sprite {
 
 	public function paramEditMode():Boolean{
 		return loaderInfo.parameters["editMode"];
+	}
+
+	public function paramUserMenu():Object{
+		return util.JSON.parse( loaderInfo.parameters["userMenu"] );
+	}
+
+	public function getLoggedUser():Object{
+		return loggedUser;
+	}
+
+	public function getProjectUser():Object{
+		return projectUser;
+	}
+
+	public function setLoggedUser( _loggedUser:Object ):void{
+		loggedUser = _loggedUser;
+		if(topBarPart){
+			topBarPart.addUserButton(true);
+		}
+		if( isNewProject ){
+			setProjectUser( loggedUser );
+		}
+	}
+
+	public function setProjectUser( _projectUser:Object ):void{
+		projectUser = _projectUser;
+		if(stagePart){
+			stagePart.setProjectInfo( _projectUser.name!="" ?"by "+_projectUser.name : "" );
+		}
+	}
+
+	public function setProjectID( _projectID:* ):void{
+		projectID = String(_projectID);
+		jsSetProjectID( _projectID );
+	}
+
+	public function projectInfo(){
+		if(projectUser){
+			return projectUser.name!="" ?"by "+projectUser.name : "";
+		}
+		return "";
+	}
+
+
+	public function initLoaderInfo():void{
+
+		isNewProject = loaderInfo.parameters.newProject;
+
+		if(loaderInfo.parameters["urls"]) urls = util.JSON.parse( loaderInfo.parameters["urls"] );
+		else urls = null;
+
+		if(urls){
+			apiUrl = urls.apiUrl;
+			log(apiUrl);
+		}
+		if(loaderInfo.parameters["studioID"]){
+			studioID = loaderInfo.parameters["studioID"];
+		}
+
+		if(loaderInfo.parameters["projectUser"]) setProjectUser( util.JSON.parse( loaderInfo.parameters["projectUser"] ) );
+		else setProjectUser( {name:'', id:-1} );
+
+		if(loaderInfo.parameters["loggedUser"]) setLoggedUser( util.JSON.parse( loaderInfo.parameters["loggedUser"] ) );
+		else setLoggedUser( {name:'', id:-1} );
 	}
 
 	public function getUrl( actionArr:Array , getParams:Object=null ):String{
@@ -232,6 +304,7 @@ public class Scratch extends Sprite {
 		initInterpreter();
 		initRuntime();
 		initExtensionManager();
+		initLoaderInfo();
 		Translator.initializeLanguageList();
 
 		playerBG = new Shape(); // create, but don't add
@@ -261,14 +334,18 @@ public class Scratch extends Sprite {
 		//Analyze.collectAssets(0, 119110);
 		//Analyze.checkProjects(56086, 64220);
 		//Analyze.countMissingAssets();
+
+		/*
 		if(paramEditMode()){
 			setEditMode(paramEditMode());
 		}
+		*/
 
 		if(paramProjectId()){
 			loadProject(paramProjectId());
 		}
 
+		setupExternalInterface(false);
 		handleStartupParameters();
 	}
 
@@ -340,6 +417,8 @@ public class Scratch extends Sprite {
 
 	public function consoleLog( obj:* ):void{
 		ExternalInterface.call('console.log', obj );
+	}
+
 	private var pendingExtensionURLs:Array;
 	private function loadGithubURL(urlOrArray:*):void {
 		if (!isExtensionDevMode) return;
@@ -425,6 +504,20 @@ public class Scratch extends Sprite {
 	}
 
 	public function showTip(tipName:String):void {
+	}
+	
+	protected function setupExternalInterface(oldWebsitePlayer:Boolean):void {
+		if (!jsEnabled) return;
+		addExternalCallback('ASloadExtension', extensionManager.loadRawExtension);
+		addExternalCallback('ASextensionCallDone', extensionManager.callCompleted);
+		addExternalCallback('ASextensionReporterDone', extensionManager.reporterCompleted);
+		addExternalCallback('ASloadExtension', extensionManager.loadRawExtension);
+		addExternalCallback('ASextensionCallDone', extensionManager.callCompleted);
+		addExternalCallback('ASextensionReporterDone', extensionManager.reporterCompleted);
+		addExternalCallback('ASsetEditMode', setEditMode );
+		addExternalCallback('ASloggedIn', setLoggedUser );
+		
+		jsInit();
 	}
 
 	public function closeTips():void {
@@ -691,6 +784,11 @@ public class Scratch extends Sprite {
 				if (jsEnabled) externalCall('tip_bar_api.show');
 			}
 		}
+
+		if(!isFullScreen || !wasEditing){
+			jsSetFullScreen(enterPresentation);
+		}
+
 		if (isOffline) {
 			stage.displayState = enterPresentation ? StageDisplayState.FULL_SCREEN_INTERACTIVE : StageDisplayState.NORMAL;
 		}
@@ -902,6 +1000,7 @@ public class Scratch extends Sprite {
 			hide(tabsPart);
 			setTab(null); // hides scripts, images, and sounds
 		}
+		jsSetFullScreen(editMode);
 		stagePane.updateListWatchers();
 		show(stagePart); // put stage in front
 		fixLayout();
@@ -1107,10 +1206,16 @@ public class Scratch extends Sprite {
 	}
 
 	protected function addFileMenuItems(b:*, m:Menu):void {
-		m.addItem('Load Project', runtime.selectProjectFile);
-		m.addItem('Save Project', exportProjectToFile);
+
+		if(getLoggedUser().id == getProjectUser().id || isNewProject ){
+			m.addItem('Save Now', saveProject);
+			m.addLine();
+		}
+
+		m.addItem('Upload from your computer', runtime.selectProjectFile);
+		m.addItem('Download to your computer', exportProjectToFile);
 		m.addLine();
-		m.addItem('Save Project Online', saveProject);
+
 
 		if (runtime.recording || runtime.ready==ReadyLabel.COUNTDOWN || runtime.ready==ReadyLabel.READY) {
 			m.addItem('Stop Video', runtime.stopVideo);
@@ -1158,6 +1263,22 @@ public class Scratch extends Sprite {
 		m.showOnStage(stage, b.x, topBarPart.bottom() - 1);
 	}
 
+	public function showUserMenu(b:*):void {
+
+		var m:Menu = new Menu(null, 'User', CSS.topBarColor, 28);
+
+		m.addItem('My Projects', function():void{
+			navigateToURL( new URLRequest( paramUserMenu().my_projects ), "_blank");
+		});
+		m.addItem('Logout', function():void{
+			navigateToURL( new URLRequest( paramUserMenu().logout ), "_self" );
+		});
+
+		var p:Point = b.localToGlobal(new Point(0, 0));
+		m.showOnStage(stage, b.x+b.width-m.width, topBarPart.bottom() - 1);
+
+	}
+
 	protected function addEditMenuItems(b:*, m:Menu):void {
 		m.addLine();
 		m.addItem('Edit block colors', editBlockColors);
@@ -1191,8 +1312,11 @@ public class Scratch extends Sprite {
 			stagePart.refresh();
 			if (callback != null) callback();
 		}
-
-		saveProjectAndThen(clearProject);
+		if( loggedUser.id == -1 || loggedUser.id != projectUser.id ){
+			clearProject();
+		}else{
+			saveProjectAndThen(clearProject);
+		}
 	}
 
 	protected function createNewProject(ignore:* = null):void {
@@ -1286,25 +1410,35 @@ public class Scratch extends Sprite {
 		}
 
 		var projIO:ProjectIO = new ProjectIO(this);
-		loader.addEventListener(Event.COMPLETE, projectDataLoaded);
+		loader.addEventListener(Event.COMPLETE, handleApiRequest( projectDataLoaded, "load project" ) );
 		loader.load(request);
 	}
 
-	protected function saveProject(fromJS:Boolean = false):void {
+	protected function saveProject( whenDone:Function=null ):void {
 
-		function projectSaved(e:Event):void {
 
+		function thumbnailSaved():void {
+			removeLoadProgressBox();
+
+			if(whenDone){
+				whenDone();
+			}
+		}
+
+		function projectSaved(e:Event):void{
+				
 			var loader:URLLoader = URLLoader(e.target);
 			var data:Object = util.JSON.parse(loader.data);
 			if(data.projectID){
-				projectID = data.projectID;
+				setProjectID( data.projectID );
 			}
+			isNewProject = false;
 
-			saveProjectThumbnail();
+			saveProjectThumbnail( thumbnailSaved );
 		}
 
 		function assetsSaved():void{
-				
+
 			var url:String = getUrl( ["projects" , projectID] );
 
 			delete stagePane.info.penTrails; // remove the penTrails bitmap saved in some old projects' info
@@ -1312,19 +1446,24 @@ public class Scratch extends Sprite {
 			stagePane.updateInfo();
 
 			var requestVars:URLVariables = new URLVariables();
-			requestVars.data = util.JSON.stringify( stagePane );
-			requestVars.projectName = projectName();
+			requestVars.json = util.JSON.stringify( stagePane );
+			requestVars.name = projectName();
+
+			if(remixOf != ""){
+				requestVars.remix_of = remixOf;
+				remixOf = "";
+			}
+			if(studioID != ""){
+				requestVars.studioID = studioID;
+			}
 
 			var request:URLRequest = new URLRequest(url);
 			request.data = requestVars;
 			request.method = URLRequestMethod.POST;
-			if(projectID){
-				request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "PUT")];
-			}
 
 			var loader:URLLoader = new URLLoader();
 
-			loader.addEventListener(Event.COMPLETE, projectSaved);
+			loader.addEventListener(Event.COMPLETE, handleApiRequest(projectSaved, "save the project") );
 
 			loader.load(request);
 
@@ -1336,6 +1475,7 @@ public class Scratch extends Sprite {
 			
 			scriptsPane.saveScripts(false);
 			projIO.saveAssets(stagePane , assetsSaved );
+
 		}
 
 		if (loadInProgress) return;
@@ -1344,9 +1484,73 @@ public class Scratch extends Sprite {
 		projIO.convertSqueakSounds(stagePane, squeakSoundsConverted);
 	}
 
-	protected function saveProjectThumbnail():void	{
+	public function remixProject(){
+		if(getLoggedUser().id == -1){
+			jsShowLoginModal();
+		}else{
+			studioID = null;
+			remixOf = projectID;
+			setProjectID("");
+			setProjectUser( getLoggedUser() );
+			setProjectName( projectName()+" Remix" );
+			saveProject(projectRemixed);
 
-		function thumbnailSaved():void{ removeLoadProgressBox() }
+			function projectRemixed(){
+				DialogBox.notify(
+					'Success!',
+					'Project successfully remixed',
+					stage);
+			}
+		}
+	}
+
+	public function handleApiRequest( callback:Function, action:String=null ):Function{
+
+		return function( e:Event ):void{
+
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+
+			switch(data.error){
+				case "unauthorized":
+					DialogBox.notify(
+						'Error!',
+						'You cannot save this project',
+						stage);
+					removeLoadProgressBox();
+					break;
+				case "unauthenticated":
+					jsShowLoginModal();
+					removeLoadProgressBox();
+					break;
+				default:
+					callback(e);
+					break;
+			}
+		}
+
+	}
+
+	public function seeProjectPage(){
+		var originalProjectId = paramProjectId();
+		if( ( originalProjectId == "0" && projectID == "" ) || originalProjectId == projectID ){
+			setEditMode(false);
+			return;
+		}
+		if( originalProjectId != projectID ){
+			var projectUrl = "http://localhost/scratch/public/projects/"+projectID;
+			if(urls){
+				projectUrl = urls.projectUrl.replace("{projectID}", projectID);
+			}
+			navigateToURL( new URLRequest(projectUrl), "_self" );
+		}
+	}
+
+	protected function saveProjectThumbnail( whenDone:Function=null ):void	{
+
+		function thumbnailSaved():void{ 
+			if(whenDone != null) whenDone();
+		}
 		
 		var stagePicture:Array = stageObj().getPictureOfStage();
 
@@ -1355,14 +1559,13 @@ public class Scratch extends Sprite {
 		//set the proper contentType
 		request.contentType = "application/octet-stream";
 		request.method = URLRequestMethod.POST;
-		request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "POST")];
 		
 		//put it to the request
 		request.data = stagePicture[1];
 		 
 		//data will be sent with URLLoader
 		var loader:URLLoader = new URLLoader();
-		loader.addEventListener(Event.COMPLETE, thumbnailSaved );
+		loader.addEventListener(Event.COMPLETE, handleApiRequest(thumbnailSaved, "save the project thumbnail") );
 		 
 		loader.load(request);	
 
@@ -1430,8 +1633,11 @@ public class Scratch extends Sprite {
 
 	public function startNewProject(newOwner:String, newID:String):void {
 		runtime.installNewProject();
+		jsSetProjectID("editor");
+		setProjectUser( getLoggedUser() );
 		projectOwner = newOwner;
 		projectID = newID;
+		isNewProject = true;
 		projectIsPrivate = true;
 	}
 
@@ -1743,6 +1949,22 @@ public class Scratch extends Sprite {
 
 	public function externalInterfaceAvailable():Boolean {
 		return ExternalInterface.available;
+	}
+
+	public function jsSetProjectID( _projectID:* ):void {
+		externalCall('editor.setProjectID', null, _projectID );
+	}
+
+	public function jsSetFullScreen( fullscreen:Boolean ):void{
+		isFullScreen = fullscreen;
+		externalCall('editor.setFullScreen', null, fullscreen );
+	}
+	public function jsShowLoginModal():void{
+		externalCall('editor.showLoginModal');
+	}
+	public function jsInit():void{
+		externalCall('editor.init');
+		
 	}
 
 	public function externalCall(functionName:String, returnValueCallback:Function = null, ...args):void {

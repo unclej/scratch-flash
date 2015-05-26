@@ -38,6 +38,7 @@
 			<define name="SCRATCH::revision" value="'${scratchFlashCommitID}'"/>
 		</mxmlc>
 	</target>
+	-->
 
 	<!-- Build for Flash Player 11.6 -->
 	<target name="compile-11.6" depends="info">

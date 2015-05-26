@@ -372,7 +372,11 @@ public class StagePart extends UIPart {
 
 	protected function updateProjectInfo():void {
 		projectTitle.setEditable(!app.isOffline);
-		projectInfo.text = '';
+		projectInfo.text = app.projectInfo();
+	}
+
+	public function setProjectInfo( info:String ){
+		projectInfo.text = info;
 	}
 
 	// -----------------------------

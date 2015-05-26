@@ -113,14 +113,13 @@ public class ProjectIO {
 		//set the proper contentType
 		request.contentType = "application/octet-stream";
 		request.method = URLRequestMethod.POST;
-		request.requestHeaders = [new URLRequestHeader("X-HTTP-Method-Override", "PUT")];
 		
 		//put it to the request
 		request.data = data;
 		 
 		//data will be sent with URLLoader
 		var loader:URLLoader = new URLLoader();
-		loader.addEventListener(Event.COMPLETE, saved);
+		loader.addEventListener(Event.COMPLETE, app.handleApiRequest(saved, "save the project") );
 
 		loader.load(request);
 	}
