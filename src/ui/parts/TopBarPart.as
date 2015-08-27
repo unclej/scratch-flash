@@ -46,6 +46,8 @@ public class TopBarPart extends UIPart {
 	protected var userMenu:IconButton;
 	protected var projectPageButton:IconButton;
 	protected var remixButton:IconButton;
+	public var saveButton:IconButton;
+	public var unsavedText:TextField = makeLabel("Saved", CSS.topBarButtonFormatGray, 2, 2);
 
 	private var copyTool:IconButton;
 	private var cutTool:IconButton;
@@ -101,12 +103,15 @@ public class TopBarPart extends UIPart {
 
 	protected function removeTextButtons():void {
 		if (fileMenu.parent) {
-			removeChild(projectPageButton);
-			removeChild(remixButton);
+			if(this.contains(projectPageButton)) removeChild(projectPageButton);
 
-			removeChild(fileMenu);
-			removeChild(editMenu);
-			removeChild(userMenu);
+			if(this.contains(remixButton)) removeChild(remixButton);
+			if(this.contains(saveButton)) removeChild(saveButton);
+
+			if(this.contains(fileMenu)) removeChild(fileMenu);
+			if(this.contains(editMenu)) removeChild(editMenu);
+			if(this.contains(userMenu)) removeChild(userMenu);
+
 		}
 	}
 
@@ -148,7 +153,7 @@ public class TopBarPart extends UIPart {
 		languageButton.y = buttonY - 1;
 		nextX += languageButton.width + buttonSpace;
 
-		var leftX = this.right();
+		var leftX:int = this.right();
 
 		// new/more/tips buttons
 		fileMenu.x = nextX;
@@ -159,7 +164,6 @@ public class TopBarPart extends UIPart {
 		editMenu.y = buttonY;
 		nextX += editMenu.width + buttonSpace;
 
-
 		leftX -= userMenu.width + buttonSpace;
 		userMenu.y = buttonY;
 		userMenu.x = leftX;
@@ -168,9 +172,24 @@ public class TopBarPart extends UIPart {
 		projectPageButton.y = buttonY;
 		projectPageButton.x = leftX;
 
-		leftX -= remixButton.width + buttonSpace;
-		remixButton.y = buttonY;
-		remixButton.x = leftX;
+		if( remixButton.visible ){
+			leftX -= remixButton.width + buttonSpace;
+			remixButton.y = buttonY;
+			remixButton.x = leftX;
+		}
+
+		if( this.contains(unsavedText) ){
+			leftX -= unsavedText.width + buttonSpace;
+			unsavedText.y = buttonY;
+			unsavedText.x = leftX;
+		}
+
+		if( this.contains(saveButton) ){
+			leftX -= saveButton.width + buttonSpace;
+			saveButton.y = buttonY;
+			saveButton.x = leftX;
+		}
+		
 
 		// cursor tool buttons
 		var space:int = 3;
@@ -178,8 +197,8 @@ public class TopBarPart extends UIPart {
 		cutTool.x = copyTool.right() + space;
 		growTool.x = cutTool.right() + space;
 		shrinkTool.x = growTool.right() + space;
-		helpTool.x = shrinkTool.right() + space;
-		copyTool.y = cutTool.y = shrinkTool.y = growTool.y = helpTool.y = buttonY - 3;
+		// helpTool.x = shrinkTool.right() + space;
+		copyTool.y = cutTool.y = shrinkTool.y = growTool.y = /*helpTool.y =*/ buttonY - 3;
 
 		if (offlineNotice) {
 			offlineNotice.x = w - offlineNotice.width - 5;
@@ -210,7 +229,7 @@ public class TopBarPart extends UIPart {
 
 	public function refresh():void {
 		if (app.isOffline) {
-			helpTool.visible = app.isOffline;
+			// helpTool.visible = app.isOffline;
 		}
 		
 		remixButton.visible = app.getLoggedUser().id != app.getProjectUser().id;
@@ -237,7 +256,13 @@ public class TopBarPart extends UIPart {
 		addChild(remixButton = makeMenuButton('Remix', function(b:*):void{
 			app.remixProject();
 		}, false));
+		
+		saveButton = makeMenuButton('Save Now', function(b:*):void{
+			app.saveProject();
+		}, false);
 
+		addChild(unsavedText);
+		
 		addChild(fileMenu = makeMenuButton('File', app.showFileMenu, true));
 		addChild(editMenu = makeMenuButton('Edit', app.showEditMenu, true));
 		addUserButton();
@@ -247,7 +272,7 @@ public class TopBarPart extends UIPart {
 		var user:Object = app.getLoggedUser();
 
 		if(userMenu){
-			removeChild(userMenu);
+			if(this.contains(userMenu)) removeChild(userMenu);
 		}
 
 		if(user.id == -1){
@@ -283,13 +308,13 @@ public class TopBarPart extends UIPart {
 		addChild(cutTool = makeToolButton('cutTool', selectTool));
 		addChild(growTool = makeToolButton('growTool', selectTool));
 		addChild(shrinkTool = makeToolButton('shrinkTool', selectTool));
-		addChild(helpTool = makeToolButton('helpTool', selectTool));
+		// addChild(helpTool = makeToolButton('helpTool', selectTool));
 
 		SimpleTooltips.add(copyTool, {text: 'Duplicate', direction: 'bottom'});
 		SimpleTooltips.add(cutTool, {text: 'Delete', direction: 'bottom'});
 		SimpleTooltips.add(growTool, {text: 'Grow', direction: 'bottom'});
 		SimpleTooltips.add(shrinkTool, {text: 'Shrink', direction: 'bottom'});
-		SimpleTooltips.add(helpTool, {text: 'Block help', direction: 'bottom'});
+		// SimpleTooltips.add(helpTool, {text: 'Block help', direction: 'bottom'});
 	}
 
 	public function clearToolButtons():void {

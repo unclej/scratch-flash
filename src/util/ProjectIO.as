@@ -88,7 +88,6 @@ public class ProjectIO {
 			savedCount++;
 			if(savedCount != allAssets.length){
 				saveAsset( allAssets[savedCount][0], allAssets[savedCount][1], assetSaved );
-
 				if (app.lp) {
 					app.lp.setProgress(savedCount / allAssets.length);
 					app.lp.setInfo(
@@ -106,7 +105,15 @@ public class ProjectIO {
 
 	public function saveAsset( md5:String, data:ByteArray, whenDone:Function ):void{
 
-		function saved():void{ whenDone(); }
+		function saved():void{ 
+			app.setAssetInList(md5);
+			whenDone(); 
+		}
+
+		if(app.assetExists(md5)){
+			saved();
+			return;
+		}
 
 		//create the request
 		var request:URLRequest = new URLRequest( app.getUrl( ["assets", md5] ) );

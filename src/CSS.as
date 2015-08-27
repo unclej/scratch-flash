@@ -37,6 +37,8 @@ public class CSS {
 
 	// Colors
 	public static const white:int = 0xFFFFFF;
+	public static const gray:int = 0xDEDEDE;
+	public static const topBarColor:int = 0x9C9EA2;
 	public static const backgroundColor_default:int = white;
 	public static const topBarColor_default:int = 0x9C9EA2;
 	public static const tabColor:int = 0xE6E8E8;
@@ -56,6 +58,7 @@ public class CSS {
 	public static const menuFontSize:int = 12;
 	public static const normalTextFormat:TextFormat = new TextFormat(font, 12, textColor);
 	public static const topBarButtonFormat:TextFormat = new TextFormat(font, 12, white, true);
+	public static const topBarButtonFormatGray:TextFormat = new TextFormat(font, 11, gray, true);
 	public static const titleFormat:TextFormat = new TextFormat(font, 14, textColor);
 	public static const thumbnailFormat:TextFormat = new TextFormat(font, 11, textColor);
 	public static const thumbnailExtraInfoFormat:TextFormat = new TextFormat(font, 9, textColor);

@@ -338,7 +338,10 @@ public class StagePart extends UIPart {
 	}
 
 	protected function getProjectTitle(fmt:TextFormat):EditableLabel {
-		return new EditableLabel(null, fmt);
+		return new EditableLabel(function(){
+			app.setSaveNeeded( true );
+			app.jsProjectTitleChange( projectTitle.contents() );
+		}, fmt);
 	}
 
 	public function updateVersionInfo(newVersion:String):void {
@@ -375,7 +378,7 @@ public class StagePart extends UIPart {
 		projectInfo.text = app.projectInfo();
 	}
 
-	public function setProjectInfo( info:String ){
+	public function setProjectInfo( info:String ):void{
 		projectInfo.text = info;
 	}
 

@@ -49,10 +49,12 @@ public class DialogBox extends Sprite {
 
 	private var acceptFunction:Function; // if not nil, called when menu interaction is accepted
 	private var cancelFunction:Function; // if not nil, called when menu interaction is canceled
+	private var noFunction:Function; // if not nil, called when menu interaction is canceled
 
-	public function DialogBox(acceptFunction:Function = null, cancelFunction:Function = null) {
+	public function DialogBox(acceptFunction:Function = null, cancelFunction:Function = null, noFunction:Function = null) {
 		this.acceptFunction = acceptFunction;
 		this.cancelFunction = cancelFunction;
+		this.noFunction = noFunction;
 		addFilters();
 		addEventListener(MouseEvent.MOUSE_DOWN, mouseDown);
 		addEventListener(MouseEvent.MOUSE_UP, mouseUp);
@@ -66,6 +68,14 @@ public class DialogBox extends Sprite {
 		d.addTitle(question);
 		d.addField('answer', 120, defaultAnswer, false);
 		d.addButton('OK', d.accept);
+		if (context) d.updateContext(context);
+		d.showOnStage(stage ? stage : Scratch.app.stage);
+	}
+
+	public static function confirmCustom(question:String, stage:Stage = null, okFunction:Function = null, noFunction:Function = null, cancelFunction:Function = null, context:Dictionary = null, acceptLabel:String = null, noLabel:String = null, cancelLabel:String = null ):void {
+		var d:DialogBox = new DialogBox(okFunction, cancelFunction, noFunction);
+		d.addTitle(question);
+		d.addThreeButtons( acceptLabel!=null ?acceptLabel :'OK', cancelLabel, noLabel);
 		if (context) d.updateContext(context);
 		d.showOnStage(stage ? stage : Scratch.app.stage);
 	}
@@ -179,6 +189,13 @@ public class DialogBox extends Sprite {
 		return spr;
 	}
 
+	public function addThreeButtons(acceptLabel:String = null, cancelLabel:String = null, noLabel:String = null):void {
+		// Add a cancel button and an optional accept button with the given label.
+		addButton(acceptLabel, accept);
+		addButton( noLabel!=null ?noLabel :'No', no);
+		addButton( cancelLabel!=null ?cancelLabel :'Cancel', cancel);
+	}
+
 	public function addAcceptCancelButtons(acceptLabel:String = null,cancelLabel:String='Cancel'):void {
 		// Add a cancel button and an optional accept button with the given label.
 		if (acceptLabel != null) addButton(acceptLabel, accept);
@@ -248,6 +265,11 @@ public class DialogBox extends Sprite {
 
 	public function cancel(e:* = null):void {
 		if (cancelFunction != null) cancelFunction(this);
+		remove();
+	}
+
+	public function no():void {
+		if (noFunction != null) noFunction(this);
 		remove();
 	}
 
