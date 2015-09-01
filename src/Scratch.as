@@ -102,6 +102,8 @@ public class Scratch extends Sprite {
 	public var isExtensionDevMode:Boolean = false; // If true, run in extension development mode (as on ScratchX)
 	public var isMicroworld:Boolean = false;
 
+	public var projectEditable = true;
+
 	public var presentationScale:Number;
 	
 	// Runtime
@@ -357,6 +359,7 @@ public class Scratch extends Sprite {
 			setEditMode(paramEditMode());
 		}
 		*/
+		projectEditable = paramEditMode();
 
 		if(paramProjectId()){
 			loadProject(paramProjectId());
@@ -1233,9 +1236,11 @@ public class Scratch extends Sprite {
 	protected function addFileMenuItems(b:*, m:Menu):void {
 
 		if(getLoggedUser().id == getProjectUser().id || isNewProject ){
-			m.addItem('Save Now', saveProject);
-			m.addItem('Save as Copy', saveAsCopy);
-			m.addLine();
+			if(projectEditable){
+				m.addItem('Save Now', saveProject);
+				m.addItem('Save as Copy', saveAsCopy);
+				m.addLine();
+			}
 		}
 
 		m.addItem('Upload from your computer', runtime.selectProjectFile);
@@ -1489,7 +1494,7 @@ public class Scratch extends Sprite {
 
 	public function saveProject( whenDone:Function=null, showProgressBar:Boolean=true ):void {
 
-		if(!editMode){
+		if(!editMode || !projectEditable){
 			if(whenDone != null){
 				whenDone();
 			}
@@ -1667,7 +1672,7 @@ public class Scratch extends Sprite {
 	}
 
 	public function checkSaveNeeded( afterSave:Function ):Boolean{
-		if(saveNeeded && checkIfSaveNeeded){
+		if(saveNeeded && checkIfSaveNeeded && projectEditable ){
 			if( getLoggedUser().id == getProjectUser().id ){
 
 				DialogBox.confirmCustom(
@@ -1854,7 +1859,7 @@ public class Scratch extends Sprite {
 		if (!wasEdited) saveNow = true; // force a save on first change
 		clearRevertUndo();
 		startAutoSave();
-		if(isProjectOwner()){
+		if(isProjectOwner() && projectEditable){
 			topBarPart.addChild(topBarPart.saveButton);
 		}
 		hide(topBarPart.unsavedText);
