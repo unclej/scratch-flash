@@ -197,7 +197,7 @@ public class TopBarPart extends UIPart {
 		cutTool.x = copyTool.right() + space;
 		growTool.x = cutTool.right() + space;
 		shrinkTool.x = growTool.right() + space;
-		// helpTool.x = shrinkTool.right() + space;
+		helpTool.x = shrinkTool.right() + space;
 		copyTool.y = cutTool.y = shrinkTool.y = growTool.y = /*helpTool.y =*/ buttonY - 3;
 
 		if (offlineNotice) {
@@ -229,7 +229,7 @@ public class TopBarPart extends UIPart {
 
 	public function refresh():void {
 		if (app.isOffline) {
-			// helpTool.visible = app.isOffline;
+			helpTool.visible = app.isOffline;
 		}
 		
 		remixButton.visible = app.getLoggedUser().id != app.getProjectUser().id;
@@ -308,13 +308,13 @@ public class TopBarPart extends UIPart {
 		addChild(cutTool = makeToolButton('cutTool', selectTool));
 		addChild(growTool = makeToolButton('growTool', selectTool));
 		addChild(shrinkTool = makeToolButton('shrinkTool', selectTool));
-		// addChild(helpTool = makeToolButton('helpTool', selectTool));
+		addChild(helpTool = makeToolButton('helpTool', selectTool));
 
 		SimpleTooltips.add(copyTool, {text: 'Duplicate', direction: 'bottom'});
 		SimpleTooltips.add(cutTool, {text: 'Delete', direction: 'bottom'});
 		SimpleTooltips.add(growTool, {text: 'Grow', direction: 'bottom'});
 		SimpleTooltips.add(shrinkTool, {text: 'Shrink', direction: 'bottom'});
-		// SimpleTooltips.add(helpTool, {text: 'Block help', direction: 'bottom'});
+		SimpleTooltips.add(helpTool, {text: 'Block help', direction: 'bottom'});
 	}
 
 	public function clearToolButtons():void {

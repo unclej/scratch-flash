@@ -524,6 +524,7 @@ public class Scratch extends Sprite {
 	}
 
 	public function showTip(tipName:String):void {
+		this.jsShowBlockHelp(tipName);
 	}
 	
 	protected function setupExternalInterface(oldWebsitePlayer:Boolean):void {
@@ -538,6 +539,7 @@ public class Scratch extends Sprite {
 		addExternalCallback('ASloggedIn', setLoggedUser );
 		addExternalCallback('ASprojectChanged', reloadProject );
 		addExternalCallback('ASsetSmallStage', setSmallStageMode );
+		addExternalCallback('AStakeScriptsScreenshot', takeScriptsScreenshot );
 		
 		jsInit();
 	}
@@ -1751,6 +1753,33 @@ public class Scratch extends Sprite {
 		}
 	}
 
+	protected function takeScriptsScreenshot(){
+
+		function scriptImageSaved(e):void{ 
+			var loader:URLLoader = URLLoader(e.target);
+			var data:Object = util.JSON.parse(loader.data);
+			jsAttachmentUploaded(data);
+		}
+		
+		var stagePicture:Array = scriptsPane.getScriptsScreenshot();
+
+		//create the request
+		var request:URLRequest = new URLRequest( app.getUrl( ["attachment", stagePicture[0]+".png" ] ) );
+		//set the proper contentType
+		request.contentType = "application/octet-stream";
+		request.method = URLRequestMethod.POST;
+		
+		//put it to the request
+		request.data = stagePicture[1];
+		 
+		//data will be sent with URLLoader
+		var loader:URLLoader = new URLLoader();
+		loader.addEventListener(Event.COMPLETE, scriptImageSaved );
+		 
+		loader.load(request);
+
+	}
+
 	protected function saveProjectThumbnail( whenDone:Function=null ):void	{
 
 		function thumbnailSaved():void{ 
@@ -2185,8 +2214,14 @@ public class Scratch extends Sprite {
 	public function jsSaveNeeded():void{
 		externalCall('editor.saveNeeded');
 	}
+	public function jsShowBlockHelp( name:String ):void{
+		externalCall('editor.showBlockHelp', null, name );
+	}
 	public function jsSaveNotNeeded():void{
 		externalCall('editor.saveNotNeeded');
+	}
+	public function jsAttachmentUploaded( attachment:Object ):void{
+		externalCall('editor.attchmentUploaded', null, attachment );
 	}
 
 	public function externalCall(functionName:String, returnValueCallback:Function = null, ...args):void {

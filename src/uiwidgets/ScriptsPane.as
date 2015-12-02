@@ -25,6 +25,7 @@
 // decides what to do when the block is dropped.
 
 package uiwidgets {
+	import flash.text.TextField;
 	import flash.display.*;
 	import flash.events.MouseEvent;
 	import flash.geom.Point;
@@ -32,6 +33,10 @@ package uiwidgets {
 	import scratch.*;
 	import flash.geom.Rectangle;
 	import ui.media.MediaInfo;
+	import flash.utils.ByteArray;
+	import by.blooddy.crypto.image.PNG24Encoder;
+	import by.blooddy.crypto.image.PNGFilter;
+	import by.blooddy.crypto.MD5;
 
 public class ScriptsPane extends ScrollFrameContents {
 
@@ -492,6 +497,21 @@ return true; // xxx disable this check for now; it was causing confusion at Scra
 			if (c && c.blockRef) updateCommentConnection(c, g);
 		}
 	}
+
+
+	public function getScriptsScreenshot():Array {
+		// Generate project thumbnail.
+		// Note: Do not save the video layer in the thumbnail for privacy reasons.
+		var bm:BitmapData = new BitmapData(this.width, this.height, false);
+
+		bm.draw(this);
+
+		var pngData:ByteArray = PNG24Encoder.encode(bm);
+		var md5:String = by.blooddy.crypto.MD5.hashBytes(pngData);
+
+		return [md5, pngData];
+	}
+
 
 	private function updateCommentConnection(c:ScratchComment, g:Graphics):void {
 		// Update the position of the given comment based on the position of the
