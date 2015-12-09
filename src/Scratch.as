@@ -540,6 +540,7 @@ public class Scratch extends Sprite {
 		addExternalCallback('ASprojectChanged', reloadProject );
 		addExternalCallback('ASsetSmallStage', setSmallStageMode );
 		addExternalCallback('AStakeScriptsScreenshot', takeScriptsScreenshot );
+		addExternalCallback('ASsetPresentationMode', setPresentationMode );
 		
 		jsInit();
 	}
