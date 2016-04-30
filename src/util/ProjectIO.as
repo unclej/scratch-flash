@@ -394,13 +394,9 @@ public class ProjectIO {
 		function assetReceived(md5:String, data:ByteArray):void {
 			assetDict[md5] = data;
 			assetCount++;
-			app.consoleLog(assetCount / assetsToFetch.length);
-			app.consoleLog(
-						assetCount + ' ' +
-								Translator.map('of') + ' ' + assetsToFetch.length + ' ' +
-								Translator.map('assets loaded'));
+
 			if (!data) {
-				app.log('missing asset: ' + md5);
+				app.log(LogLevel.WARNING, 'missing asset: ' + md5);
 			}
 			if (app.lp) {
 				app.lp.setProgress(assetCount / assetsToFetch.length);
@@ -410,7 +406,6 @@ public class ProjectIO {
 								Translator.map('assets loaded'));
 			}
 			if (assetCount == assetsToFetch.length) {
-				app.consoleLog("All Loaded");
 				installAssets(proj.allObjects(), assetDict);
 				app.runtime.decodeImagesAndInstall(proj);
 			}

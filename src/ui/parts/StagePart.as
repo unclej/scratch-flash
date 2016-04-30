@@ -338,7 +338,7 @@ public class StagePart extends UIPart {
 	}
 
 	protected function getProjectTitle(fmt:TextFormat):EditableLabel {
-		return new EditableLabel(function(){
+		return new EditableLabel(function():void{
 			app.setSaveNeeded( true );
 			app.jsProjectTitleChange( projectTitle.contents() );
 		}, fmt);

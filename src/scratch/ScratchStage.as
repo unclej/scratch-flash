@@ -642,6 +642,7 @@ public class ScratchStage extends ScratchObj {
 		}
 	}
 
+	 
 	public function getBitmapWithoutSpriteFilteredByColor(s:ScratchSprite, c:int):BitmapData {
 		commitPenStrokes(); // force any pen strokes to be rendered so they can be sensed
 

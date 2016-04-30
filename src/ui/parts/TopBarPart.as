@@ -164,6 +164,8 @@ public class TopBarPart extends UIPart {
 		editMenu.y = buttonY;
 		nextX += editMenu.width + buttonSpace;
 
+		app.jsFullscreenPosition( nextX );
+
 		leftX -= userMenu.width + buttonSpace;
 		userMenu.y = buttonY;
 		userMenu.x = leftX;
@@ -249,6 +251,7 @@ public class TopBarPart extends UIPart {
 	}
 
 	protected function addTextButtons():void {
+
 		addChild(projectPageButton = makeMenuButton('Show Project page', function(b:*):void{
 			app.seeProjectPage();
 		}, false));

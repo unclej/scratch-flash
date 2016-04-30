@@ -117,6 +117,8 @@ public class MediaLibrary extends Sprite {
 		setWidthHeight(app.stage.stageWidth, app.stage.stageHeight);
 		app.addChild(this);
 		viewLibrary();
+
+		app.jsFullscreenOverlay( true );
 	}
 
 	public function importFromDisk():void {
@@ -130,6 +132,9 @@ public class MediaLibrary extends Sprite {
 		parent.removeChild(this);
 		app.mediaLibrary = null;
 		app.reopenTips();
+
+		app.jsFullscreenOverlay( false );
+
 	}
 
 	public function setWidthHeight(w:int, h:int):void {

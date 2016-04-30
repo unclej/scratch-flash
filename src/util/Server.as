@@ -253,12 +253,16 @@ public class Server implements IServer {
 //			whenDone(BackpackPart.localAssets[md5]);
 //			return null;
 //		}
-		var url:String = URLs.assetCdnPrefix + URLs.internalAPI + 'asset/' + md5 + '/get/';
-		return serverGet(url, whenDone);
+		var url:String = Scratch.app.getUrl( ['assets',md5] );
+
+		return serverGet(url, function( data:ByteArray ):void{
+			Scratch.app.setAssetInList(md5);
+			whenDone(data);
+		});
 	}
 
 	public function getMediaLibrary(libraryType:String, whenDone:Function):URLLoader {
-		var url:String = getCdnStaticSiteURL() + 'medialibraries/' + libraryType + 'Library.json';
+		var url:String = Scratch.app.getUrl( ['assets', 'library', libraryType ] );
 		return serverGet(url, whenDone);
 	}
 
@@ -305,7 +309,8 @@ public class Server implements IServer {
 	}
 
 	public function getThumbnail(idAndExt:String, w:int, h:int, whenDone:Function):URLLoader {
-		var url:String = getCdnStaticSiteURL() + 'medialibrarythumbnails/' + idAndExt;
+		// var url:String = getCdnStaticSiteURL() + 'medialibrarythumbnails/' + idAndExt;
+		var url:String = Scratch.app.getUrl( ['assets',idAndExt] );
 		return downloadThumbnail(url, w, h, whenDone);
 	}
 
@@ -314,11 +319,11 @@ public class Server implements IServer {
 	//------------------------------
 
 	public function getLanguageList(whenDone:Function):void {
-		serverGet('locale/lang_list.txt', whenDone);
+		serverGet( Scratch.app.getUrl(['locale']) , whenDone);
 	}
 
 	public function getPOFile(lang:String, whenDone:Function):void {
-		serverGet('locale/' + lang + '.po', whenDone);
+		serverGet( Scratch.app.getUrl(['locale', lang]) , whenDone);
 	}
 
 	public function getSelectedLang(whenDone:Function):void {
