@@ -156,6 +156,7 @@ public class Server implements IServer {
 	// The request includes site and session authentication headers.
 	protected function callServer(url:String, data:*, mimeType:String, whenDone:Function,
 	                              queryParams:Object = null):URLLoader {
+																	Scratch.app.log(LogLevel.WARNING, "url : " + url);
 		function addListeners():void {
 			loader.addEventListener(Event.COMPLETE, completeHandler);
 			loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, errorHandler);
@@ -253,7 +254,9 @@ public class Server implements IServer {
 //			whenDone(BackpackPart.localAssets[md5]);
 //			return null;
 //		}
-		var url:String = Scratch.app.getUrl( ['assets',md5] );
+		// $response = new Response(file_get_contents('http://d3dch2j0kvht3t.cloudfront.net/dev/'.$md5), 200);
+		var url:String = 'http://d3dch2j0kvht3t.cloudfront.net/dev/' + md5;
+		// var url:String = Scratch.app.getUrl( ['assets',md5] );
 
 		return serverGet(url, function( data:ByteArray ):void{
 			Scratch.app.setAssetInList(md5);
