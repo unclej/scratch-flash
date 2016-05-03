@@ -13,7 +13,7 @@
 	<taskdef resource="flexTasks.tasks" classpath="${FLEX_HOME}/ant/lib/flexTasks.jar" />
 
 	<!-- General tasks -->
-	<target name="all" depends="clean,compile-10.2,compile-11.6"/>
+	<target name="all" depends="clean,compile-11.6"/>
 
 	<target name="clean">
 		<delete dir="${DEPLOY_DIR}" />
@@ -25,6 +25,7 @@
 	</target>
 
 	<!-- Build for Flash Player 10.2 -->
+	<!--
 	<target name="compile-10.2" depends="info">
 		<mxmlc file="${SRC_DIR}/Scratch.as" output="${DEPLOY_DIR}/ScratchFor10.2.swf"
 		                target-player="10.2" swf-version="11" debug="false">

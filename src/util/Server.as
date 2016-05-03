@@ -253,7 +253,8 @@ public class Server implements IServer {
 //			whenDone(BackpackPart.localAssets[md5]);
 //			return null;
 //		}
-		var url:String = Scratch.app.getUrl( ['assets',md5] );
+
+		var url:String = Scratch.app.urls.assetsUrl + md5;
 
 		return serverGet(url, function( data:ByteArray ):void{
 			Scratch.app.setAssetInList(md5);
@@ -310,7 +311,7 @@ public class Server implements IServer {
 
 	public function getThumbnail(idAndExt:String, w:int, h:int, whenDone:Function):URLLoader {
 		// var url:String = getCdnStaticSiteURL() + 'medialibrarythumbnails/' + idAndExt;
-		var url:String = Scratch.app.getUrl( ['assets',idAndExt] );
+		var url:String = Scratch.app.urls.assetsUrl + idAndExt;
 		return downloadThumbnail(url, w, h, whenDone);
 	}
 
