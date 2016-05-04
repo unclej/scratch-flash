@@ -156,7 +156,7 @@ public class Server implements IServer {
 	// The request includes site and session authentication headers.
 	protected function callServer(url:String, data:*, mimeType:String, whenDone:Function,
 	                              queryParams:Object = null):URLLoader {
-																	Scratch.app.log(LogLevel.WARNING, "url : " + url);
+
 		function addListeners():void {
 			loader.addEventListener(Event.COMPLETE, completeHandler);
 			loader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, errorHandler);
@@ -254,8 +254,8 @@ public class Server implements IServer {
 //			whenDone(BackpackPart.localAssets[md5]);
 //			return null;
 //		}
-		// $response = new Response(file_get_contents('http://d3dch2j0kvht3t.cloudfront.net/dev/'.$md5), 200);
-		var url:String = 'http://d3dch2j0kvht3t.cloudfront.net/dev/' + md5;
+
+		var url:String = Scratch.app.urls.assetsUrl + md5;
 		// var url:String = Scratch.app.getUrl( ['assets',md5] );
 
 		return serverGet(url, function( data:ByteArray ):void{
@@ -266,6 +266,7 @@ public class Server implements IServer {
 
 	public function getMediaLibrary(libraryType:String, whenDone:Function):URLLoader {
 		var url:String = Scratch.app.getUrl( ['assets', 'library', libraryType ] );
+		Scratch.app.log(LogLevel.WARNING, "url : " + url);
 		return serverGet(url, whenDone);
 	}
 
@@ -313,7 +314,8 @@ public class Server implements IServer {
 
 	public function getThumbnail(idAndExt:String, w:int, h:int, whenDone:Function):URLLoader {
 		// var url:String = getCdnStaticSiteURL() + 'medialibrarythumbnails/' + idAndExt;
-		var url:String = Scratch.app.getUrl( ['assets',idAndExt] );
+		var url:String = Scratch.app.urls.assetsUrl + idAndExt;
+		// var url:String = Scratch.app.getUrl( ['assets',idAndExt] );
 		return downloadThumbnail(url, w, h, whenDone);
 	}
 
