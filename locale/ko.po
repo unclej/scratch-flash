@@ -1540,7 +1540,7 @@ msgstr "다른 이름으로 저장하기"
 msgid "Save as a copy"
 msgstr "복사본 저장하기"
 
-msgid "Save now"
+msgid "Save Now"
 msgstr "저장하기"
 
 msgid "Save project?"
