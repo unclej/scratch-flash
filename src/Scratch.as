@@ -2229,6 +2229,16 @@ public class Scratch extends Sprite {
 		
 	}
 	public function jsSaveNeeded():void{
+		/*
+			Here's where I'd make an external call with the json script code
+			I might be able to just call out with the current scriptspane instead of the entire stage proj json??
+			*/
+
+			// json:String = util.JSON.stringify( stagePane );
+			json:String = util.JSON.stringify( scriptsPane );
+
+		  externalCall('editor.checkScripts', null, json);
+
 		externalCall('editor.saveNeeded');
 	}
 	public function jsShowBlockHelp( name:String ):void{
