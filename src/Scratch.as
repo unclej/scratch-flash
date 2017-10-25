@@ -2234,8 +2234,8 @@ public class Scratch extends Sprite {
 			I might be able to just call out with the current scriptspane instead of the entire stage proj json??
 			*/
 
-			// json:String = util.JSON.stringify( stagePane );
-			json:String = util.JSON.stringify( scriptsPane );
+			var json:String = util.JSON.stringify( stagePane );
+			// json:String = util.JSON.stringify( scriptsPane );
 
 		  externalCall('editor.checkScripts', null, json);
 
